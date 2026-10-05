@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FSAE 单轮悬架受力计算器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#eef1f7; --card:#ffffff; --ink:#1e2433; --ink2:#606a80; --ink3:#8d97ab;
+  --line:#e4e8f0; --line2:#eef1f7;
+  --acc:#3b6ef5; --acc-soft:#eaf0ff;
+  --ok:#0ea472; --ok-soft:#e6f7f1;
+  --warn:#d98900; --warn-soft:#fdf3e2;
+  --bad:#e0413c; --bad-soft:#fdeceb;
+  --up:#5b6ef5; --low:#0f9b8e; --push:#e8862a; --damp:#e0413c; --tie:#8b5cf6; --rock:#15a05a;
+  --r:14px; --r2:10px;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,"SFMono-Regular",monospace;
+}
+html,body{height:100%}
+body{
+  font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,-apple-system,sans-serif;
+  background:
+    radial-gradient(1100px 520px at 8% -8%,#dbe4ff 0%,rgba(219,228,255,0) 60%),
+    radial-gradient(900px 480px at 100% 0%,#e2f6f4 0%,rgba(226,246,244,0) 55%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--ink); font-size:13px; line-height:1.5; padding:16px 16px 48px;
+  -webkit-font-smoothing:antialiased;
+}
+.app{max-width:1760px;margin:0 auto}
+
+/* ---------- 顶栏 ---------- */
+header.top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .logo{
+  width:42px;height:42px;border-radius:13px;flex:0 0 auto;position:relative;
+  background:linear-gradient(135deg,#3b6ef5,#6f4bf2 55%,#12b3a8);
+  box-shadow:0 8px 20px rgba(59,110,245,.32);
+}
+.brand .logo::after{content:"";position:absolute;inset:11px;border:2.5px solid rgba(255,255,255,.94);border-radius:50%}
+.brand h1{font-size:18px;font-weight:700;letter-spacing:.2px}
+.brand p{font-size:11.5px;color:var(--ink2);margin-top:2px}
+.topbtns{display:flex;gap:8px;flex-wrap:wrap}
+button{
+  font-family:inherit;font-size:12.5px;border:1px solid var(--line);background:#fff;color:var(--ink);
+  padding:8px 13px;border-radius:var(--r2);cursor:pointer;transition:.15s;font-weight:500;
+}
+button:hover{border-color:#c3cde4;background:#fafbff;transform:translateY(-1px)}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 5px 14px rgba(59,110,245,.28)}
+button.primary:hover{background:#2f5fe6;border-color:#2f5fe6}
+button.ghost{background:#fff}
+
+/* ---------- 布局 ---------- */
+.app-grid{display:grid;grid-template-columns:392px minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:1120px){.app-grid{grid-template-columns:1fr}}
+
+.card{background:var(--card);border-radius:var(--r);box-shadow:0 2px 10px rgba(24,38,74,.06),0 1px 2px rgba(24,38,74,.04);border:1px solid rgba(228,232,240,.9)}
+.card>.hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 15px;border-bottom:1px solid var(--line2)}
+.card>.hd h2{font-size:13.5px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:7px}
+.card>.hd h2 .dot{width:8px;height:8px;border-radius:3px;background:var(--acc);display:inline-block}
+.card>.bd{padding:13px 15px}
+.panel{display:flex;flex-direction:column;gap:12px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;padding-right:3px}
+.panel::-webkit-scrollbar{width:9px}
+.panel::-webkit-scrollbar-thumb{background:#cfd7e8;border-radius:9px;border:2px solid transparent;background-clip:content-box}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+/* ---------- 折叠块 ---------- */
+details.sec{background:var(--card);border-radius:var(--r);border:1px solid rgba(228,232,240,.9);box-shadow:0 2px 10px rgba(24,38,74,.05);overflow:hidden}
+details.sec>summary{
+  cursor:pointer;list-style:none;padding:12px 15px;font-size:13.5px;font-weight:700;
+  display:flex;align-items:center;gap:8px;user-select:none;transition:.15s;
+}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary:hover{background:#fafbff}
+details.sec>summary::before{
+  content:"";width:8px;height:8px;border-radius:3px;background:var(--acc);flex:0 0 auto;
+}
+details.sec>summary::after{
+  content:"▾";margin-left:auto;color:var(--ink3);font-size:11px;transition:.2s;
+}
+details.sec[open]>summary::after{transform:rotate(180deg)}
+details.sec[open]>summary{border-bottom:1px solid var(--line2)}
+.secbody{padding:12px 15px 15px}
+.hint{font-size:11px;color:var(--ink2);line-height:1.65}
+
+/* ---------- 输入控件 ---------- */
+.field{display:grid;grid-template-columns:1fr 92px;gap:8px;align-items:center;margin-bottom:7px}
+.field label{font-size:12px;color:var(--ink2)}
+.field .unit{font-size:10.5px;color:var(--ink3);margin-left:3px}
+input[type=number],input[type=text]{
+  font-family:var(--mono);font-size:12px;width:100%;padding:6px 8px;border:1px solid var(--line);
+  border-radius:8px;background:#fbfcff;color:var(--ink);text-align:right;transition:.15s;
+}
+input[type=number]:focus,input[type=text]:focus{outline:none;border-color:var(--acc);background:#fff;box-shadow:0 0 0 3px rgba(59,110,245,.12)}
+input[type=checkbox]{accent-color:var(--acc);width:15px;height:15px;cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--acc)}
+
+table{border-collapse:collapse;width:100%}
+.hp{font-size:11.5px}
+.hp th{font-weight:600;color:var(--ink3);font-size:10.5px;text-align:center;padding:3px 2px;border-bottom:1px solid var(--line2);letter-spacing:.3px}
+.hp th:first-child{text-align:left;padding-left:2px}
+.hp td{padding:2.5px 2px;border-bottom:1px solid #f4f6fb}
+.hp td.nm{font-size:11px;color:var(--ink2);white-space:nowrap;padding-right:5px}
+.hp td.nm .tag{display:inline-block;width:6px;height:6px;border-radius:2px;margin-right:5px;vertical-align:1px}
+.hp input{padding:4px 5px;font-size:11px;border-radius:6px;width:100%;min-width:52px}
+.hp tr:hover td{background:#fafbff}
+
+/* ---------- 工况表 ---------- */
+.cases{font-size:11.5px}
+.cases th{font-weight:600;color:var(--ink3);font-size:10.5px;text-align:center;padding:4px 3px;border-bottom:1px solid var(--line2)}
+.cases th:first-child{text-align:left}
+.cases td{padding:3px 3px;border-bottom:1px solid #f4f6fb}
+.cases td.nm{font-size:11px;color:var(--ink2);white-space:nowrap}
+.cases input{padding:4px 4px;font-size:11px;border-radius:6px;text-align:center}
+
+/* ---------- 3D 视口 ---------- */
+.viewport{position:relative;border-radius:var(--r);overflow:hidden;background:linear-gradient(160deg,#151b2e 0%,#1d2740 55%,#121828 100%);height:470px;box-shadow:0 6px 22px rgba(16,24,48,.22)}
+.viewport canvas{display:block;width:100%;height:100%;cursor:grab}
+.viewport canvas:active{cursor:grabbing}
+.vhud{position:absolute;left:12px;top:11px;display:flex;gap:7px;flex-wrap:wrap;pointer-events:none}
+.vhud .pill{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#dbe3f7;font-size:10.5px;padding:3.5px 9px;border-radius:20px;backdrop-filter:blur(6px)}
+.vhud .pill b{color:#fff;font-weight:600}
+.legend{position:absolute;right:12px;top:11px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.legend div{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#cdd7ee;background:rgba(12,18,32,.42);padding:2.5px 8px;border-radius:20px;backdrop-filter:blur(6px)}
+.legend i{width:14px;height:3px;border-radius:3px;display:inline-block}
+.vfoot{position:absolute;left:12px;bottom:11px;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.vfoot .pill{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#dbe3f7;font-size:10.5px;padding:3.5px 9px;border-radius:20px}
+.vfoot .pill.warn{background:rgba(224,65,60,.22);border-color:rgba(224,65,60,.45);color:#ffd9d7}
+
+/* ---------- 告警 ---------- */
+.alerts{display:flex;flex-direction:column;gap:7px}
+.alert{display:flex;gap:9px;align-items:flex-start;padding:9px 12px;border-radius:var(--r2);font-size:12px;border:1px solid}
+.alert .ic{flex:0 0 auto;width:16px;height:16px;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;margin-top:1px}
+.alert.ok{background:var(--ok-soft);border-color:#c8ecdf}.alert.ok .ic{background:var(--ok)}
+.alert.warn{background:var(--warn-soft);border-color:#f4dfb8}.alert.warn .ic{background:var(--warn)}
+.alert.bad{background:var(--bad-soft);border-color:#f6cfcd}.alert.bad .ic{background:var(--bad)}
+.alert b{font-weight:600}
+.alert span{color:var(--ink2)}
+
+/* ---------- 指标网格 ---------- */
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px}
+.metric{background:#fafbff;border:1px solid var(--line2);border-radius:var(--r2);padding:9px 11px}
+.metric .k{font-size:10.5px;color:var(--ink3);margin-bottom:3px;letter-spacing:.2px}
+.metric .v{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--ink)}
+.metric .v small{font-size:10.5px;font-weight:400;color:var(--ink3);margin-left:3px;font-family:inherit}
+.metric.good .v{color:var(--ok)} .metric.warn .v{color:var(--warn)} .metric.bad .v{color:var(--bad)}
+
+/* ---------- 结果表 ---------- */
+.rt{font-size:12px}
+.rt th{font-weight:600;color:var(--ink3);font-size:10.5px;padding:6px 6px;border-bottom:1px solid var(--line);text-align:center;letter-spacing:.2px;white-space:nowrap;background:#fafbff}
+.rt th:first-child,.rt th.l{text-align:left}
+.rt td{padding:5px 6px;border-bottom:1px solid #f4f6fb;text-align:right;font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.rt td:first-child{text-align:left;font-family:inherit;font-size:11.5px;color:var(--ink2)}
+.rt tr:hover td{background:#fafbff}
+.rt tr.hl td{background:var(--acc-soft)}
+.rt td.big{font-weight:700;color:var(--ink)}
+.rt .swatch{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.tagx{display:inline-block;font-size:10px;padding:1.5px 6px;border-radius:20px;font-weight:600;font-family:inherit}
+.tagx.c{background:#fdeceb;color:var(--bad)} .tagx.t{background:#eaf0ff;color:var(--acc)}
+.tagx.n{background:#f0f2f7;color:var(--ink3)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font-size:11.5px;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;cursor:pointer;transition:.15s;color:var(--ink2)}
+.tab:hover{border-color:#c3cde4;color:var(--ink)}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600;box-shadow:0 4px 12px rgba(59,110,245,.25)}
+.scrollx{overflow-x:auto}
+.heat{display:inline-block;padding:1px 5px;border-radius:6px}
+.sec-title{font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.6px;margin:2px 0 7px;text-transform:uppercase}
+.sub{font-size:11px;color:var(--ink3);line-height:1.6}
+ul.assume{margin:0;padding-left:17px;font-size:11.5px;color:var(--ink2);line-height:1.8}
+ul.assume code{font-family:var(--mono);background:#f2f5fb;padding:1px 5px;border-radius:5px;font-size:11px;color:#3d4a63}
+.ftr{text-align:center;font-size:11px;color:var(--ink3);margin-top:22px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <h1>FSAE 单轮悬架受力计算器</h1>
+      <p>X 前 / Y 左 / Z 上 · 单位 mm · 原点在整车中心 · 左前角 · 上叉臂推杆 · 空间机构静力平衡求解</p>
+    </div>
+  </div>
+  <div class="topbtns">
+    <button class="ghost" id="btnFit">重置视角</button>
+    <button class="ghost" id="btnSnap">几何校正（共面 + 等腰直角）</button>
+    <button class="primary" id="btnReset">恢复默认几何</button>
+  </div>
+</header>
+
+<div class="app-grid">
+
+  <!-- ======================= 左侧输入 ======================= -->
+  <aside class="panel" id="panel">
+
+    <details class="sec" open>
+      <summary>硬点坐标</summary>
+      <div class="secbody">
+        <table class="hp" id="hpTable"></table>
+        <div class="hint" style="margin-top:9px">
+          所有硬点可编辑，改动后立即重算重绘。转轴方向由摇臂三点所在平面自动求出；
+          推杆座 UPR 必须落在上叉臂三角形平面内，减震器两端与摇臂、推杆共面。
+        </div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>整车参数</summary>
+      <div class="secbody" id="vehBox"></div>
+    </details>
+
+    <details class="sec" open>
+      <summary>轮胎与车轮</summary>
+      <div class="secbody" id="tireBox"></div>
+    </details>
+
+    <details class="sec" open>
+      <summary>弹簧 / 减震器</summary>
+      <div class="secbody" id="sprBox"></div>
+    </details>
+
+    <details class="sec" open>
+      <summary>工况</summary>
+      <div class="secbody">
+        <table class="cases" id="caseTable"></table>
+        <div class="hint" style="margin-top:9px">
+          <b>gx</b> 正 = 加速、负 = 制动；<b>gy</b> 正 = 左转（向 +Y 加速）。<br>
+          本模型为<b>左前轮</b>：gy 取负（右转）时该轮为<b>外侧轮</b>，载荷增加。<br>
+          勾选"手"即用手填的 Fx/Fy/Fz 覆盖该工况的自动计算值。
+        </div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary>显示选项</summary>
+      <div class="secbody" id="viewBox"></div>
+    </details>
+
+  </aside>
+
+  <!-- ======================= 右侧输出 ======================= -->
+  <section class="col">
+
+    <div class="viewport" id="viewport">
+      <canvas id="cv"></canvas>
+      <div class="vhud">
+        <div class="pill" id="hudCase">工况：—</div>
+        <div class="pill" id="hudMax">最大力：—</div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="vfoot">
+        <div class="pill">左键拖拽旋转 · 滚轮缩放 · 右键拖拽平移</div>
+        <div class="pill warn" id="hudWarn" style="display:none">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2><span class="dot"></span>余量与告警</h2><span class="sub" id="marginSummary"></span></div>
+      <div class="bd"><div class="alerts" id="alerts"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2><span class="dot"></span>关键指标</h2><span class="sub">由硬点几何自动导出</span></div>
+      <div class="bd"><div class="metrics" id="metrics"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2><span class="dot"></span>工况汇总（力的大小 N）</h2><span class="sub">5 个工况同时求解</span></div>
+      <div class="bd"><div class="scrollx"><table class="rt" id="sumTable"></table></div></div>
+    </div>
+
+    <div class="card">
+      <div class="hd">
+        <h2><span class="dot"></span>详细受力</h2>
+        <div class="tabs" id="caseTabs"></div>
+      </div>
+      <div class="bd">
+        <div id="caseInfo" class="sub" style="margin-bottom:10px"></div>
+        <div class="sec-title">构件内力</div>
+        <div class="scrollx"><table class="rt" id="memberTable"></table></div>
+        <div class="sec-title" style="margin-top:15px">硬点受力（作用于该硬点所属构件）</div>
+        <div class="scrollx"><table class="rt" id="hpForceTable"></table></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2><span class="dot"></span>模型假设与符号约定</h2></div>
+      <div class="bd">
+        <ul class="assume">
+          <li>坐标系：<code>X</code> 向前、<code>Y</code> 向左、<code>Z</code> 向上，原点在整车中心（轴距中点），长度 mm、力 N、力矩 N·mm。</li>
+          <li>立柱、上/下叉臂、摇臂为刚体；球头为理想球铰（只传力），叉臂内点为理想转动铰（可传力 + 垂直转轴的弯矩），推杆/转向拉杆为二力杆，减震器为沿轴线的二力元件。</li>
+          <li>求解方式：把上述约束写成 <code>24×24</code> 线性方程组（<code>Jᵀλ = −F_ext</code>，未知量 = 23 个约束反力 + 1 个减震器力），直接解出所有硬点受力。力臂、转轴、方向全部由硬点算出，无任何写死值。</li>
+          <li>叉臂两内点的分配：铰点只传力，把该铰反力（力 + 垂直转轴的弯矩）等效分到前后两个内点上，轴向分量按 50/50 平分（轴向分量本身静不定）。</li>
+          <li>轮胎力施加在接地点（由轮心、轮胎半径、外倾角、前束角自动算出），不额外引入轮胎回正力矩。</li>
+          <li>载荷：由整车参数 + 每工况 G 值按标准载荷转移公式算到单轮，横向力按垂载比例分配到左右轮。</li>
+          <li><b>受压为正</b>：推杆、转向拉杆、减震器的轴向力正值 = 受压、负值 = 受拉。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ftr">单文件 · 无外部依赖 · 可直接双击在浏览器打开</div>
+  </section>
+</div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   FSAE 单轮（左前角）悬架受力计算器
+   ---------------------------------------------------------------------
+   力学模型：4 个刚体（上叉臂 / 下叉臂 / 立柱 / 摇臂）
+             23 个理想约束 + 1 个未知减震器力 = 24 个未知量
+             24 个平衡方程（每刚体 3 力 + 3 矩）
+   ===================================================================== */
+
+/* ---------------------- 向量工具 ---------------------- */
+const V = {
+  sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+  add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+  mul:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
+  dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  cross:(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]],
+  len:a=>Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]),
+  norm:a=>{const L=Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]); return L<1e-12?[0,0,0]:[a[0]/L,a[1]/L,a[2]/L];},
+  dist:(a,b)=>Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2),
+  perp:a=>{ // 任意与 a 正交的单位向量
+    const ax=Math.abs(a[0]),ay=Math.abs(a[1]),az=Math.abs(a[2]);
+    let t;
+    if(ax<=ay&&ax<=az) t=[1,0,0]; else if(ay<=az) t=[0,1,0]; else t=[0,0,1];
+    return V.norm(V.cross(a,t));
+  }
+};
+const D2R = Math.PI/180, G0 = 9.80665;
+
+/* ---------------------- 默认数据 ---------------------- */
+const HP_DEF = [
+  {k:'UAF', n:'上叉臂·前内点',   g:'up',   v:[860.0000, 285.0000, 320.0000]},
+  {k:'UAR', n:'上叉臂·后内点',   g:'up',   v:[672.0000, 285.0000, 320.0000]},
+  {k:'UBJ', n:'上球头（外点）',  g:'up',   v:[760.0000, 454.0000, 310.0000]},
+  {k:'UPR', n:'上叉臂·推杆座',   g:'push', v:[760.0000, 377.9500, 314.5000]},
+  {k:'LAF', n:'下叉臂·前内点',   g:'low',  v:[868.0000, 275.0000, 152.0000]},
+  {k:'LAR', n:'下叉臂·后内点',   g:'low',  v:[682.0000, 275.0000, 152.0000]},
+  {k:'LBJ', n:'下球头（外点）',  g:'low',  v:[770.0000, 490.0000, 140.0000]},
+  {k:'RKP', n:'摇臂·转轴',       g:'rock', v:[720.0000, 210.0000, 480.0000]},
+  {k:'RPR', n:'摇臂·推杆点',     g:'push', v:[724.5762, 229.2142, 572.9240]},
+  {k:'RDE', n:'摇臂·减震器点',   g:'damp', v:[698.4708, 119.6044, 499.7516]},
+  {k:'DCH', n:'减震器·车架点',   g:'damp', v:[708.1049, 160.0553, 304.1221]},
+  {k:'TRI', n:'转向拉杆·齿条点', g:'tie',  v:[650.0000, 250.0000, 195.0000]},
+  {k:'TRO', n:'转向拉杆·转向节点',g:'tie', v:[700.0000, 470.0000, 190.0000]},
+  {k:'WC',  n:'轮心',            g:'wheel',v:[775.0000, 600.0000, 190.0000]}
+];
+const GRP_COLOR = {up:'#5b6ef5', low:'#0f9b8e', push:'#e8862a', damp:'#e0413c', tie:'#8b5cf6', rock:'#15a05a', wheel:'#8d97ab'};
+const GRP_NAME  = {up:'上叉臂', low:'下叉臂', push:'推杆', damp:'减震器', tie:'转向拉杆', rock:'摇臂', wheel:'车轮'};
+
+const VEH_DEF = { mass:300, wheelbase:1550, track:1200, cgHeight:300,
+                  frontWeightFrac:0.45, frontRollFrac:0.55, brakeBias:0.62, frontDriveShare:0.0 };
+const TIRE_DEF = { radius:190, width:180, mu:1.6, camber:-2.0, toe:0.0, rimRadius:165.1 };
+const SPR_DEF  = { rate:45, preload:0, nominalLen:200 };
+const CASE_DEF = [
+  {name:'静态',            gx: 0.00, gy: 0.00, aero:0, manual:false, mFx:0, mFy:0, mFz:0},
+  {name:'直线制动',        gx:-1.50, gy: 0.00, aero:0, manual:false, mFx:0, mFy:0, mFz:0},
+  {name:'减速入弯(外)',    gx:-0.65, gy:-1.25, aero:0, manual:false, mFx:0, mFy:0, mFz:0},
+  {name:'弯中',            gx: 0.00, gy:-1.40, aero:0, manual:false, mFx:0, mFy:0, mFz:0},
+  {name:'加速出弯(外)',    gx: 0.40, gy:-1.10, aero:0, manual:false, mFx:0, mFy:0, mFz:0}
+];
+const VIEW_DEF = { arrows:true, tire:true, labels:true, arrowScale:1.0, selectCase:3 };
+
+/* ---------------------- 状态 ---------------------- */
+let S;
+function initState(){
+  S = {
+    hp: {}, veh:{...VEH_DEF}, tire:{...TIRE_DEF}, spr:{...SPR_DEF},
+    cases: CASE_DEF.map(c=>({...c})), view:{...VIEW_DEF}, manualF: null
+  };
+  HP_DEF.forEach(h=>S.hp[h.k]=h.v.slice());
+}
+initState();
+const HPK = HP_DEF.map(h=>h.k);
+const HPINFO = {}; HP_DEF.forEach(h=>HPINFO[h.k]=h);
+
+/* =====================================================================
+   1. 几何导出
+   ===================================================================== */
+function buildGeo(hp){
+  const g = { p:hp, err:[] };
+  const P = k => hp[k];
+
+  g.upAxis  = V.norm(V.sub(P('UAF'), P('UAR')));      // 上叉臂转轴
+  g.loAxis  = V.norm(V.sub(P('LAF'), P('LAR')));      // 下叉臂转轴
+  // 摇臂转轴 = 摇臂三点所在平面的法向（硬点一动自动跟随）
+  const rv1 = V.sub(P('RPR'), P('RKP')), rv2 = V.sub(P('RDE'), P('RKP'));
+  const rn  = V.cross(rv1, rv2);
+  g.rockerAxisRaw = rn;
+  g.rockerAxis = V.norm(rn);
+  g.rockerNormalLen = V.len(rn);
+  if(g.rockerNormalLen < 1e-3) g.err.push('摇臂三点接近共线，转轴无法确定');
+
+  // 二力杆方向（定义 λ>0 为受压）
+  g.prVec = V.sub(P('UPR'), P('RPR'));  g.prLen = V.len(g.prVec);  g.prDir = V.norm(g.prVec);
+  g.tieVec= V.sub(P('TRO'), P('TRI'));  g.tieLen= V.len(g.tieVec); g.tieDir= V.norm(g.tieVec);
+  g.damVec= V.sub(P('RDE'), P('DCH'));  g.damLen= V.len(g.damVec); g.damDir= V.norm(g.damVec);
+
+  // 车轮轴线（左前轮）
+  const c = S.tire.camber*D2R, t = -S.tire.toe*D2R;   // 左轮：正前束 = 前端指 -Y
+  const up0 = [0, Math.sin(c), Math.cos(c)];
+  const ct=Math.cos(t), st=Math.sin(t);
+  g.wheelUp  = [ct*up0[0]-st*up0[1], st*up0[0]+ct*up0[1], up0[2]];
+  g.wheelFwd = [ct, st, 0];
+  g.wheelAxis= V.norm(V.cross(g.wheelUp, g.wheelFwd));  // 指向外侧（+Y）
+  g.cp = V.sub(P('WC'), V.mul(g.wheelUp, S.tire.radius)); // 接地点
+
+  // 摇臂几何
+  g.rockerL1 = V.len(rv1); g.rockerL2 = V.len(rv2);
+  g.rockerAngle = Math.acos(Math.max(-1,Math.min(1, V.dot(V.norm(rv1),V.norm(rv2)))))/D2R;
+  g.rockerHyp = V.dist(P('RPR'), P('RDE'));
+
+  // 力臂（对摇臂转轴）：点到直线的垂距
+  const armOf = (pt, dir) => V.len(V.cross(V.sub(pt, P('RKP')), dir));
+  g.armPush  = armOf(P('RPR'), g.prDir);
+  g.armDam   = armOf(P('RDE'), g.damDir);
+  g.rockerRatio = g.armPush>1e-6 ? g.armDam/g.armPush : 0;
+
+  // 共面性：UPR / DCH 到摇臂平面的距离
+  const n = g.rockerAxis;
+  g.coplaneUPR = Math.abs(V.dot(V.sub(P('UPR'), P('RKP')), n));
+  g.coplaneDCH = Math.abs(V.dot(V.sub(P('DCH'), P('RKP')), n));
+  g.coplaneMax = Math.max(g.coplaneUPR, g.coplaneDCH);
+  // 推杆是否落在摇臂平面内
+  g.coplanePush = Math.abs(V.dot(V.sub(P('UPR'), P('RKP')), n));
+
+  // 叉臂三角形质量
+  const triQ = (a,b,cc)=>{
+    const l=[V.dist(a,b),V.dist(b,cc),V.dist(cc,a)].sort((x,y)=>x-y);
+    const ang = Math.acos(Math.max(-1,Math.min(1,(l[1]*l[1]+l[2]*l[2]-l[0]*l[0])/(2*l[1]*l[2]))))/D2R;
+    return {minAngle:ang, sides:l};
+  };
+  g.upTri = triQ(P('UAF'),P('UAR'),P('UBJ'));
+  g.loTri = triQ(P('LAF'),P('LAR'),P('LBJ'));
+  // 叉臂有效长度（外点到转轴的垂距）
+  g.upArmLen = V.len(V.cross(V.sub(P('UBJ'),P('UAR')), g.upAxis));
+  g.loArmLen = V.len(V.cross(V.sub(P('LBJ'),P('LAR')), g.loAxis));
+
+  // 主销参数（以"指向车身上方"的 kpUp 为基准，正 = 顶部内倾 / 后倾）
+  const kpUp = V.sub(P('UBJ'), P('LBJ'));
+  g.kingpinLen = V.len(kpUp);
+  const kpn = V.norm(V.sub(P('LBJ'), P('UBJ')));   // UBJ → LBJ（向下）
+  g.KPI    = Math.atan2(-kpUp[1], kpUp[2])/D2R;    // 左轮：顶部内倾为正（内倾方向 = -Y）
+  g.caster = Math.atan2(-kpUp[0], kpUp[2])/D2R;    // 顶部后倾为正
+  // 地面上主销轴线交点（从 LBJ 沿 UBJ->LBJ 延长到 z=0）
+  let grd;
+  if(Math.abs(kpn[2])>1e-6){
+    const s = -P('LBJ')[2]/kpn[2];
+    grd = [P('LBJ')[0]+kpn[0]*s, P('LBJ')[1]+kpn[1]*s, 0];
+  } else grd = [P('LBJ')[0], P('LBJ')[1], 0];
+  g.kingpinGround = grd;
+  g.scrub = Math.hypot(grd[0]-g.cp[0], grd[1]-g.cp[1]);
+
+  // 硬点与轮胎/轮辋的最小间隙
+  g.clearance = [];
+  const wc = P('WC'), nAx = g.wheelAxis;
+  const R = S.tire.radius, Rd = S.tire.rimRadius, hw = S.tire.width/2;
+  HPK.forEach(k=>{
+    if(k==='WC') return;
+    const d = V.sub(hp[k], wc);
+    const ax = Math.abs(V.dot(d, nAx)) - hw;
+    const rad = V.len(V.sub(d, V.mul(nAx, V.dot(d, nAx))));
+    const cT = Math.max(ax, rad - R);      // 对轮胎圆柱
+    const cR = Math.max(ax, rad - Rd);     // 对轮辋圆柱
+    const val = Math.max(cT, cR);
+    g.clearance.push({k, v:val});
+  });
+
+  // 运动比：单位垂向轮胎力下的减震器轴向力 IR，MR = 1/IR
+  g.IR = NaN; g.MR = NaN;
+  try{
+    const u = solveCase(g, [0,0,1]);
+    if(u){ g.IR = u.damper; if(Math.abs(u.damper)>1e-9) g.MR = 1/u.damper; }
+  }catch(e){ /* 退化几何：保留 NaN */ }
+  return g;
+}
+
+/* =====================================================================
+   2. 线性求解器
+   ===================================================================== */
+function solveLin(A){          // A: n×(n+1) 增广矩阵，就地消元
+  const n = A.length;
+  for(let col=0;col<n;col++){
+    let piv=col, best=Math.abs(A[col][col]);
+    for(let r=col+1;r<n;r++){const v=Math.abs(A[r][col]); if(v>best){best=v;piv=r;}}
+    if(!(best>1e-11)) return null;
+    if(piv!==col){const tmp=A[piv];A[piv]=A[col];A[col]=tmp;}
+    const p = A[col][col];
+    for(let r=col+1;r<n;r++){
+      const f = A[r][col]/p;
+      if(f===0) continue;
+      const Ar=A[r], Ac=A[col];
+      for(let c=col;c<=n;c++) Ar[c]-=f*Ac[c];
+    }
+  }
+  const x = new Float64Array(n);
+  for(let r=n-1;r>=0;r--){
+    let s = A[r][n], Ar=A[r];
+    for(let c=r+1;c<n;c++) s -= Ar[c]*x[c];
+    x[r] = s/Ar[r];
+  }
+  return x;
+}
+
+/* =====================================================================
+   3. 核心：构建并求解 24×24 静力平衡方程组
+   ===================================================================== */
+const B_UP=0, B_LO=1, B_KN=2, B_RK=3;   // 刚体编号
+const NDOF = 24;
+
+function solveCase(geo, Fext /* [Fx,Fy,Fz] 作用于接地点 */){
+  const p = geo.p;
+  const A = []; for(let i=0;i<NDOF;i++) A.push(new Float64Array(NDOF+1));
+  const REF = [p.UBJ, p.LBJ, p.WC, p.RKP];
+  const rho = (body, pt) => V.sub(pt, REF[body]);
+
+  function addForceCol(col, body, r, e, sign){
+    for(let k=0;k<3;k++) A[body*6+k][col] += sign*e[k];
+    const m = V.cross(r,e);
+    for(let k=0;k<3;k++) A[body*6+3+k][col] += sign*m[k];
+  }
+  function addMomCol(col, body, n){
+    for(let k=0;k<3;k++) A[body*6+3+k][col] += n[k];
+  }
+  function addPoint3(col, bodyA, rA, bodyB, rB){  // 球铰 / 固定点：3 列
+    for(let k=0;k<3;k++){
+      const e=[0,0,0]; e[k]=1;
+      addForceCol(col+k, bodyA, rA, e, +1);
+      if(bodyB>=0) addForceCol(col+k, bodyB, rB, e, -1);
+    }
+  }
+
+  let c = 0;
+  // ---- 上叉臂转动铰（轴线 UAF-UAR，位置 UAF）----
+  const nU1 = V.perp(geo.upAxis), nU2 = V.cross(geo.upAxis, nU1);
+  addPoint3(c, B_UP, rho(B_UP,p.UAF), -1, null); c+=3;
+  addMomCol(c++, B_UP, nU1); addMomCol(c++, B_UP, nU2);
+  // ---- 下叉臂转动铰 ----
+  const nL1 = V.perp(geo.loAxis), nL2 = V.cross(geo.loAxis, nL1);
+  addPoint3(c, B_LO, rho(B_LO,p.LAF), -1, null); c+=3;
+  addMomCol(c++, B_LO, nL1); addMomCol(c++, B_LO, nL2);
+  // ---- 摇臂转动铰（轴线 = 摇臂平面法向，位置 RKP）----
+  const nR1 = V.perp(geo.rockerAxis), nR2 = V.cross(geo.rockerAxis, nR1);
+  addPoint3(c, B_RK, rho(B_RK,p.RKP), -1, null); c+=3;
+  addMomCol(c++, B_RK, nR1); addMomCol(c++, B_RK, nR2);
+  // ---- 球头：上叉臂-立柱、下叉臂-立柱 ----
+  addPoint3(c, B_UP, rho(B_UP,p.UBJ), B_KN, rho(B_KN,p.UBJ)); c+=3;
+  addPoint3(c, B_LO, rho(B_LO,p.LBJ), B_KN, rho(B_KN,p.LBJ)); c+=3;
+  // ---- 推杆（上叉臂-摇臂）二力 ----
+  addForceCol(c, B_UP, rho(B_UP,p.UPR), geo.prDir, +1);
+  addForceCol(c, B_RK, rho(B_RK,p.RPR), geo.prDir, -1);
+  const COL_PR = c; c++;
+  // ---- 转向拉杆（立柱-齿条）二力 ----
+  addForceCol(c, B_KN, rho(B_KN,p.TRO), geo.tieDir, +1);
+  const COL_TIE = c; c++;
+  // ---- 减震器（摇臂-车架）未知力 ----
+  addForceCol(c, B_RK, rho(B_RK,p.RDE), geo.damDir, +1);
+  const COL_DAM = c; c++;
+
+  if(c !== NDOF) throw new Error('约束列数异常：'+c);
+
+  // ---- 右端项：-F_ext ----
+  const rcp = rho(B_KN, geo.cp);
+  const Mcp = V.cross(rcp, Fext);
+  for(let k=0;k<3;k++){
+    A[B_KN*6+k][NDOF]   -= Fext[k];
+    A[B_KN*6+3+k][NDOF] -= Mcp[k];
+  }
+
+  const x = solveLin(A);
+  if(!x) return null;
+
+  /* ---------- 结果整理 ---------- */
+  const lam = i => [x[i],x[i+1],x[i+2]];
+  const R = {};
+  // 铰反力（作用于该构件）
+  R.upPivotF = [x[0],x[1],x[2]];
+  R.upPivotM = V.add(V.mul(nU1,x[3]), V.mul(nU2,x[4]));
+  R.loPivotF = [x[5],x[6],x[7]];
+  R.loPivotM = V.add(V.mul(nL1,x[8]), V.mul(nL2,x[9]));
+  R.rkPivotF = [x[10],x[11],x[12]];
+  R.rkPivotM = V.add(V.mul(nR1,x[13]), V.mul(nR2,x[14]));
+  // 球头：λ 是作用于 A 刚体的力
+  R.ubjOnUpper = [x[15],x[16],x[17]];
+  R.lbjOnLower = [x[18],x[19],x[20]];
+  R.ubjOnKnuckle = V.mul(R.ubjOnUpper,-1);
+  R.lbjOnKnuckle = V.mul(R.lbjOnLower,-1);
+  R.pushrod = x[COL_PR];    // >0 受压
+  R.tierod  = x[COL_TIE];
+  R.damper  = x[COL_DAM];
+  R.pushrodF_onUpper = V.mul(geo.prDir,  R.pushrod);
+  R.pushrodF_onRocker= V.mul(geo.prDir, -R.pushrod);
+  R.tieF_onKnuckle   = V.mul(geo.tieDir,  R.tierod);
+  R.tieF_onRack      = V.mul(geo.tieDir, -R.tierod);
+  R.damperF_onRocker = V.mul(geo.damDir,  R.damper);
+  R.damperF_onFrame  = V.mul(geo.damDir, -R.damper);
+
+  // 叉臂内点分配：把铰反力（力 F 作用于铰点 + 垂直于转轴的弯矩）等效分到两个内点上。
+  // 两内点只传力时，横向分配唯一；沿转轴的轴向分量静不定，按 50/50 平分。
+  // 上叉臂：参考点 UBJ，铰点在 UAF
+  {
+    const p1=p.UAF, p2=p.UAR, a=V.norm(V.sub(p2,p1)), d=V.dist(p1,p2);
+    // 将 (力 F 作用于 UBJ 参考点 + 偶 M) 转为"作用于 UAF 的等效力矩"
+    const M_at_p1 = V.add(R.upPivotM, V.cross(V.sub(REF[B_UP],p1), R.upPivotF));
+    const F2perp = V.mul(V.cross(M_at_p1, a), 1/d);
+    const axial = V.dot(R.upPivotF, a);
+    const F1 = V.sub(V.add(R.upPivotF, V.mul(F2perp,-1)), V.mul(a, axial/2));
+    const F2 = V.add(F2perp, V.mul(a, axial/2));
+    R.UAF = F1; R.UAR = F2;
+    R.upPivotM_at_arm = M_at_p1;
+  }
+  // 下叉臂
+  {
+    const p1=p.LAF, p2=p.LAR, a=V.norm(V.sub(p2,p1)), d=V.dist(p1,p2);
+    const M_at_p1 = V.add(R.loPivotM, V.cross(V.sub(REF[B_LO],p1), R.loPivotF));
+    const F2perp = V.mul(V.cross(M_at_p1, a), 1/d);
+    const axial = V.dot(R.loPivotF, a);
+    R.LAF = V.sub(V.add(R.loPivotF, V.mul(F2perp,-1)), V.mul(a, axial/2));
+    R.LAR = V.add(F2perp, V.mul(a, axial/2));
+    R.loPivotM_at_arm = M_at_p1;
+  }
+  return R;
+}
+
+/* =====================================================================
+   4. 载荷工况
+   ===================================================================== */
+function wheelForces(geo, cs){
+  const v = S.veh, m = v.mass, W = m*G0, L = v.wheelbase;
+  const xF = S.hp.WC[0], xR = xF - L;
+  const aR = L*v.frontWeightFrac;          // 重心到后轴距离
+  const xCG = xR + aR, aF = xF - xCG;
+  const ax = cs.gx*G0, ay = cs.gy*G0;
+
+  const Wf = W*aR/L - m*ax*v.cgHeight/L;                       // 前轴垂载（含纵向转移）
+  const dWyf = m*ay*v.cgHeight/v.track*v.frontRollFrac;        // 前轴横向转移
+  let FzL = Wf/2 - dWyf/2 + cs.aero;
+  let FzR = Wf/2 + dWyf/2 + cs.aero;
+
+  let FxA = 0;
+  if(ax < 0)      FxA = m*ax*v.brakeBias;        // 制动：按前制动分配
+  else if(ax > 0) FxA = m*ax*v.frontDriveShare;  // 驱动：按前驱动分配（后驱=0）
+  const FyA = m*ay*aR/L;                         // 偏航平衡决定的前轴侧向力
+  const tot = Math.max(FzL+FzR, 1e-9);
+  const FxL = FxA*0.5, FxR = FxA*0.5;
+  const FyL = FyA*FzL/tot, FyR = FyA*FzR/tot;
+
+  const use = (FzL>1e-6)? Math.hypot(FxL,FyL)/FzL : Infinity;
+  const useR= (FzR>1e-6)? Math.hypot(FxR,FyR)/FzR : Infinity;
+
+  let Fx=FxL, Fy=FyL, Fz=FzL, manual=false;
+  if(cs.manual){ Fx=cs.mFx; Fy=cs.mFy; Fz=cs.mFz; manual=true; }
+  const useM = (Fz>1e-6)? Math.hypot(Fx,Fy)/Fz : Infinity;
+
+  return {xCG, aF, aR, Wf, FzL, FzR, FxL, FxR, FyL, FyR,
+          useL:use, useR:useR, Fx, Fy, Fz, useM, manual, ax, ay};
+}
+
+/* =====================================================================
+   5. 总计算
+   ===================================================================== */
+let CALC = null;
+function computeAll(){
+  let geo, cases=[], err=null;
+  try{ geo = buildGeo(S.hp); }catch(e){ geo=null; err='几何构建失败：'+e.message; }
+
+  if(geo && !geo.err.length){
+    S.cases.forEach((cs,i)=>{
+      const wf = wheelForces(geo, cs);
+      let res=null, e2=null;
+      try{ res = solveCase(geo, [wf.Fx, wf.Fy, wf.Fz]); }
+      catch(e){ e2 = e.message; }
+      if(!res) e2 = e2 || '平衡方程奇异（几何退化）';
+      cases.push({cs, wf, res, err:e2});
+    });
+  } else if(geo){ err = geo.err.join('；'); }
+
+  CALC = {geo, cases, err};
+  return CALC;
+}
+
+/* 关键输出（用于灵敏度/余量分析） */
+function keyOutputs(geo, F){
+  let r; try{ r = solveCase(geo,F); }catch(e){ return null; }
+  if(!r) return null;
+  return {
+    '推杆':r.pushrod, '转向拉杆':r.tierod, '减震器':r.damper,
+    '上球头':V.len(r.ubjOnUpper), '下球头':V.len(r.lbjOnLower),
+    '上叉臂前内点':V.len(r.UAF), '下叉臂前内点':V.len(r.LAF),
+    '摇臂轴':V.len(r.rkPivotF)
+  };
+}
+
+/* 余量：硬点偏移多少毫米会让任一关键力变化 10% */
+function marginAnalysis(){
+  const out = {margin:Infinity, worst:'', worstHP:'', sens:0};
+  if(!CALC || !CALC.geo || CALC.err) return out;
+  const DELTA = 0.5, TARGET = 0.10;
+  const saved = {}; HPK.forEach(k=>saved[k]=S.hp[k].slice());
+  const base = [], baseF = [], refSc = [];
+  CALC.cases.forEach(c=>{
+    if(!c.res){ base.push(null); baseF.push(null); refSc.push(1); return; }
+    const b = keyOutputs(CALC.geo, [c.wf.Fx,c.wf.Fy,c.wf.Fz]);
+    base.push(b); baseF.push([c.wf.Fx,c.wf.Fy,c.wf.Fz]);
+    // 参考量级：避免"接近 0 的杆件力"把相对灵敏度放大成假告警
+    refSc.push(b ? Math.max(1, ...Object.keys(b).map(k=>Math.abs(b[k]))) : 1);
+  });
+  let worstSens=0, worstName='', worstHP='';
+  for(const k of HPK){
+    for(let ax=0; ax<3; ax++){
+      const v0 = saved[k][ax];
+      S.hp[k][ax] = v0 + DELTA;
+      let g2; try{ g2 = buildGeo(S.hp); }catch(e){ g2=null; }
+      if(g2 && !g2.err.length){
+        for(let ci=0; ci<CALC.cases.length; ci++){
+          const b = base[ci]; if(!b) continue;
+          const o = keyOutputs(g2, baseF[ci]); if(!o) continue;
+          for(const key in b){
+            // 以"该工况最大关键力"的 25% 作为下限：接近 0 的杆件力不参与余量判定
+            const den = Math.max(Math.abs(b[key]), 0.25*refSc[ci]);
+            const s = Math.abs(o[key]-b[key])/den/DELTA;   // 每 mm 的相对变化
+            if(s > worstSens){ worstSens=s; worstName=key; worstHP=k; }
+          }
+        }
+      }
+      S.hp[k][ax] = v0;
+    }
+  }
+  out.sens = worstSens;
+  out.margin = worstSens>1e-12 ? TARGET/worstSens : Infinity;
+  out.worst = worstName; out.worstHP = worstHP;
+  return out;
+}
+
+/* =====================================================================
+   6. 告警与指标
+   ===================================================================== */
+function buildAlerts(){
+  const A=[], geo = CALC.geo;
+  if(CALC.err){ A.push({l:'bad',t:'几何错误',d:CALC.err}); return A; }
+  const push=(l,t,d)=>A.push({l,t,d});
+
+  // --- 数值余量 ---
+  const mg = marginAnalysis();
+  CALC.margin = mg;
+  if(mg.margin === Infinity) push('ok','数值余量充足','在当前几何下，硬点 ±0.5 mm 偏移几乎不影响力的大小');
+  else if(mg.margin < 0.4) push('bad','数值余量严重不足',
+        `硬点仅偏移 <b>${mg.margin.toFixed(2)} mm</b> 即可让「${mg.worst}」变化 10%。几何接近退化，请检查摇臂三角形与推杆/减震器方向是否近乎共线。`);
+  else if(mg.margin < 2)  push('warn','数值余量偏小',
+        `硬点偏移 <b>${mg.margin.toFixed(2)} mm</b> 即让「${mg.worst}」变化 10%（最敏感点：${HPINFO[mg.worstHP]?HPINFO[mg.worstHP].n:mg.worstHP}）。建议加大摇臂力臂或拉开推杆与转轴的距离。`);
+  else push('ok','数值余量充足',`硬点偏移约 <b>${mg.margin.toFixed(1)} mm</b> 才会让「${mg.worst}」变化 10%，硬点微调不会导致计算失稳。`);
+
+  // --- 共面性 ---
+  if(geo.coplaneMax > 3) push('bad','共面性偏差过大',
+      `上叉臂推杆座 / 减震器车架点到摇臂平面的距离最大 <b>${geo.coplaneMax.toFixed(2)} mm</b>，机构不再共面，结果不可信。`);
+  else if(geo.coplaneMax > 0.5) push('warn','共面性有偏差',
+      `最大偏离摇臂平面 <b>${geo.coplaneMax.toFixed(2)} mm</b>（建议 < 0.5 mm）。可用顶部"几何校正"按钮吸附。`);
+  else push('ok','共面性良好',`推杆座 UPR、减震器车架点 DCH 偏离摇臂平面 ≤ <b>${geo.coplaneMax.toFixed(3)} mm</b>。`);
+
+  // --- 摇臂等腰直角 ---
+  const dl = Math.abs(geo.rockerL1-geo.rockerL2)/Math.max(geo.rockerL1,1e-6)*100;
+  const da = Math.abs(geo.rockerAngle-90);
+  if(dl>12 || da>6) push('bad','摇臂形状偏离"等腰直角"',
+      `两臂长 ${geo.rockerL1.toFixed(1)} / ${geo.rockerL2.toFixed(1)} mm（差 ${dl.toFixed(1)}%），转轴处夹角 ${geo.rockerAngle.toFixed(2)}°。`);
+  else if(dl>4 || da>2) push('warn','摇臂形状略有偏差',
+      `两臂长差 ${dl.toFixed(1)}%，夹角 ${geo.rockerAngle.toFixed(2)}°（建议 90°±2°）。`);
+  else push('ok','摇臂为等腰直角三角形',`两臂 ${geo.rockerL1.toFixed(1)} / ${geo.rockerL2.toFixed(1)} mm，转轴处夹角 <b>${geo.rockerAngle.toFixed(3)}°</b>。`);
+
+  // --- 摇臂力臂 ---
+  if(geo.armPush < 12 || geo.armDam < 12) push('bad','摇臂力臂过短',
+      `推杆力臂 ${geo.armPush.toFixed(1)} mm、减震器力臂 ${geo.armDam.toFixed(1)} mm。力臂趋近 0 时该构件受力会趋于无穷。`);
+  else if(geo.armPush < 25 || geo.armDam < 25) push('warn','摇臂力臂偏短',
+      `推杆力臂 ${geo.armPush.toFixed(1)} mm、减震器力臂 ${geo.armDam.toFixed(1)} mm。`);
+
+  // --- 叉臂三角形 ---
+  const triTxt = t => t.minAngle.toFixed(1)+'°';
+  if(geo.upTri.minAngle < 12 || geo.loTri.minAngle < 12) push('bad','叉臂三角形退化',
+      `上叉臂最小内角 ${triTxt(geo.upTri)}、下叉臂 ${triTxt(geo.loTri)}。三角形过扁会让内点分配与球头受力失真。`);
+  else if(geo.upTri.minAngle < 20 || geo.loTri.minAngle < 20) push('warn','叉臂三角形偏扁',
+      `上叉臂最小内角 ${triTxt(geo.upTri)}、下叉臂最小内角 ${triTxt(geo.loTri)}。`);
+
+  // --- 杆长 ---
+  const dl2 = Math.abs(geo.damLen-S.spr.nominalLen)/S.spr.nominalLen*100;
+  if(geo.prLen<100||geo.tieLen<100||geo.damLen<100) push('warn','构件过短',
+      `推杆 ${geo.prLen.toFixed(1)} mm、转向拉杆 ${geo.tieLen.toFixed(1)} mm、减震器 ${geo.damLen.toFixed(1)} mm。`);
+  if(dl2>15) push('warn','减震器长度偏离标称值',
+      `当前减震器长度 <b>${geo.damLen.toFixed(1)} mm</b>，与标称 ${S.spr.nominalLen} mm 相差 ${dl2.toFixed(1)}%。`);
+
+  // --- 轮胎干涉 ---
+  const bad = geo.clearance.filter(c=>c.v<0);
+  const tight = geo.clearance.filter(c=>c.v>=0 && c.v<8);
+  if(bad.length) push('bad','硬点侵入轮胎/轮辋', bad.map(c=>`${HPINFO[c.k].n}（${c.v.toFixed(1)} mm）`).join('、'));
+  else if(tight.length) push('warn','硬点与轮胎间隙偏小',
+      tight.map(c=>`${HPINFO[c.k].n}: ${c.v.toFixed(1)} mm`).join('、') + '（建议 ≥ 8 mm）');
+
+  // --- 工况 ---
+  let maxUse = 0, maxName='';
+  CALC.cases.forEach(c=>{
+    if(!c.res) return;
+    if(c.wf.Fz<=0) push('bad',`「${c.cs.name}」车轮离地`,`该工况垂向载荷 ${c.wf.Fz.toFixed(0)} N ≤ 0，轮胎已离地，结果无物理意义。`);
+    const u = c.wf.useM;
+    if(isFinite(u) && u>maxUse){maxUse=u;maxName=c.cs.name;}
+  });
+  if(maxUse > S.tire.mu) push('bad','轮胎附着超限',
+      `「${maxName}」摩擦利用率 <b>${maxUse.toFixed(3)}</b> > μ=${S.tire.mu}，该组合在物理上无法实现。`);
+  else if(maxUse > S.tire.mu*0.95) push('warn','轮胎附着接近极限',
+      `「${maxName}」摩擦利用率 <b>${maxUse.toFixed(3)}</b>，已达 μ=${S.tire.mu} 的 ${(maxUse/S.tire.mu*100).toFixed(0)}%。`);
+  else if(maxUse>0) push('ok','轮胎附着在极限内',`最大摩擦利用率 ${maxUse.toFixed(3)}（「${maxName}」），为 μ=${S.tire.mu} 的 ${(maxUse/S.tire.mu*100).toFixed(0)}%。`);
+
+  // --- 运动比 ---
+  if(isFinite(geo.MR)){
+    if(geo.MR<=0.08 || geo.MR>1.4) push('warn','运动比异常',`减震器/轮心行程比 MR = ${geo.MR.toFixed(3)}，建议 0.3–0.9。`);
+  } else push('warn','运动比无法求解','单位垂向力工况求解失败，几何可能退化。');
+
+  // 全 OK 时给一条总结
+  if(!A.some(a=>a.l!=='ok')) push('ok','全部检查通过','几何、共面性、余量、附着均在合理范围内。');
+  return A;
+}
+
+/* =====================================================================
+   7. 三维视图（自写 Canvas 渲染器）
+   ===================================================================== */
+const cam = {yaw:-0.95, pitch:0.38, zoom:1, baseDist:1900, target:[760,340,300]};
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let viewportSize = {w:800,h:430};
+
+function resizeCanvas(){
+  const r = document.getElementById('viewport').getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  viewportSize = {w:Math.max(320,r.width), h:Math.max(240,r.height)};
+  cv.width = viewportSize.w*dpr; cv.height = viewportSize.h*dpr;
+  cv.style.width = viewportSize.w+'px'; cv.style.height = viewportSize.h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function camBasis(){
+  const cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
+  const cy=Math.cos(cam.yaw),  sy=Math.sin(cam.yaw);
+  const dir=[cp*cy, cp*sy, sp];                       // target → camera
+  const zA=dir;
+  const xA_=V.norm(V.cross([0,0,1], zA));
+  const yA=V.cross(zA, xA_);
+  return {zA, xA:xA_, yA};
+}
+function makeProjector(){
+  const {zA,xA,yA}=camBasis();
+  const dist = cam.baseDist/cam.zoom;
+  const camPos = V.add(cam.target, V.mul(zA, dist));
+  const f = Math.min(viewportSize.w, viewportSize.h)*0.95;
+  return function(pt){
+    const v = V.sub(pt, camPos);
+    const x = V.dot(v,xA), y = V.dot(v,yA), z = V.dot(v,zA);
+    const depth = -z;
+    if(depth < 30) return null;
+    return {x: viewportSize.w/2 + f*x/depth,
+            y: viewportSize.h/2 - f*y/depth,
+            d: depth,
+            s: Math.max(1, Math.min(14, f/depth*0.010))};
+  };
+}
+
+/* 自动取景：按硬点 + 轮胎外廓的包围球确定相机目标与距离 */
+function fitView(){
+  if(!CALC || !CALC.geo) return;
+  const p = CALC.geo.p, g = CALC.geo;
+  const pts = HPK.map(k=>p[k]);
+  for(let i=0;i<20;i++){
+    const th=i/20*Math.PI*2;
+    const rad=V.add(V.mul(g.wheelUp,Math.cos(th)), V.mul(g.wheelFwd,Math.sin(th)));
+    pts.push(V.add(p.WC, V.mul(rad, S.tire.radius)));
+  }
+  let mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9];
+  pts.forEach(q=>{ for(let i=0;i<3;i++){ mn[i]=Math.min(mn[i],q[i]); mx[i]=Math.max(mx[i],q[i]); } });
+  cam.target = [(mn[0]+mx[0])/2, (mn[1]+mx[1])/2, (mn[2]+mx[2])/2];
+  let R = 1; pts.forEach(q=>{ R = Math.max(R, V.dist(q, cam.target)); });
+  cam.baseDist = R*2.18;
+  cam.zoom = 1;
+}
+
+function tube(proj, a, b, color, wmm, alpha){
+  const pa=proj(a), pb=proj(b); if(!pa||!pb) return null;
+  ctx.strokeStyle=color; ctx.globalAlpha=alpha===undefined?1:alpha;
+  ctx.lineWidth=Math.max(1.2, Math.min(13, ((pa.s+pb.s)/2)*wmm));
+  ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+  ctx.globalAlpha=1;
+  return (pa.d+pb.d)/2;
+}
+function dot3(proj, p, r, color, ring){
+  const pp=proj(p); if(!pp) return null;
+  ctx.beginPath(); ctx.arc(pp.x,pp.y,r,0,Math.PI*2);
+  ctx.fillStyle=color; ctx.fill();
+  if(ring){ ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=1.4; ctx.stroke(); }
+  return pp.d;
+}
+function arrow3(proj, p, dir, lenMM, color, label){
+  const tip = V.add(p, V.mul(V.norm(dir), lenMM));
+  const pa=proj(p), pb=proj(tip); if(!pa||!pb) return null;
+  const dx=pb.x-pa.x, dy=pb.y-pa.y, L=Math.hypot(dx,dy);
+  if(L<3) return null;
+  ctx.strokeStyle=color; ctx.lineWidth=Math.max(1.6, Math.min(6, pa.s*1.9));
+  ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+  const ux=dx/L, uy=dy/L, hl=Math.min(13, L*0.35);
+  ctx.beginPath();
+  ctx.moveTo(pb.x,pb.y);
+  ctx.lineTo(pb.x-ux*hl-uy*hl*0.42, pb.y-uy*hl+ux*hl*0.42);
+  ctx.lineTo(pb.x-ux*hl+uy*hl*0.42, pb.y-uy*hl-ux*hl*0.42);
+  ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+  if(label){
+    ctx.font='700 10px "Microsoft YaHei",sans-serif';
+    ctx.textAlign='center';
+    ctx.lineWidth=3; ctx.strokeStyle='rgba(10,16,30,.85)';
+    ctx.strokeText(label, pb.x+ux*14, pb.y+uy*14+4);
+    ctx.fillStyle='rgba(255,255,255,.95)';
+    ctx.fillText(label, pb.x+ux*14, pb.y+uy*14+4);
+  }
+  return (pa.d+pb.d)/2;
+}
+
+function render3D(){
+  if(!ctx) return;
+  const W=viewportSize.w, H=viewportSize.h;
+  ctx.clearRect(0,0,W,H);
+  // 背景
+  const bg=ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#151b2e'); bg.addColorStop(.55,'#1d2740'); bg.addColorStop(1,'#121828');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  if(!CALC || !CALC.geo || CALC.err){
+    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='13px "Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.fillText(CALC&&CALC.err?CALC.err:'无数据', W/2, H/2);
+    return;
+  }
+  const geo=CALC.geo, p=geo.p, proj=makeProjector();
+  const ci = Math.min(S.view.selectCase, CALC.cases.length-1);
+  const cse = CALC.cases[ci];
+  const res = cse.res;
+
+  /* ---- 地面网格 ---- */
+  const gx0=200, gx1=1350, gy0=-250, gy1=1000, step=100;
+  ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=1;
+  for(let x=Math.ceil(gx0/step)*step; x<=gx1; x+=step){
+    const a=proj([x,gy0,0]), b=proj([x,gy1,0]);
+    if(a&&b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+  }
+  for(let y=Math.ceil(gy0/step)*step; y<=gy1; y+=step){
+    const a=proj([gx0,y,0]), b=proj([gx1,y,0]);
+    if(a&&b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+  }
+  /* ---- 整车中心坐标轴 ---- */
+  const ax0=[0,0,0], axs=[[320,0,0,'#ff6b6b','X 前'],[0,320,0,'#4ade80','Y 左'],[0,0,320,'#60a5fa','Z 上']];
+  axs.forEach(a=>{
+    tube(proj, ax0, [a[0],a[1],a[2]], a[3], 2.2, .85);
+    const pp=proj([a[0],a[1],a[2]]);
+    if(pp){ ctx.font='600 11px "Microsoft YaHei",sans-serif'; ctx.fillStyle=a[3]; ctx.textAlign='center';
+            ctx.fillText(a[4], pp.x, pp.y-6); }
+  });
+  dot3(proj, ax0, 3.5, '#ffffff', false);
+
+  const items=[];
+  const push = (d, fn)=>{ items.push({d, fn}); };
+
+  /* ---- 轮胎 ---- */
+  if(S.view.tire){
+    const R=S.tire.radius, hw=S.tire.width/2, wc=p.WC, n=geo.wheelAxis, up=geo.wheelUp, fw=geo.wheelFwd;
+    const N=40, Rd=S.tire.rimRadius;
+    const oO=[],oI=[],rO=[],rI=[];
+    for(let i=0;i<N;i++){
+      const th=i/N*Math.PI*2, cd=Math.cos(th), sd=Math.sin(th);
+      const rad=V.add(V.mul(up,cd), V.mul(fw,sd));
+      oO.push(V.add(wc, V.add(V.mul(n, hw), V.mul(rad,R))));
+      oI.push(V.sub(V.add(wc, V.mul(rad,R)), V.mul(n, hw)));
+      rO.push(V.add(wc, V.add(V.mul(n, hw), V.mul(rad,Rd))));
+      rI.push(V.sub(V.add(wc, V.mul(rad,Rd)), V.mul(n, hw)));
+    }
+    const poly=(arr,color,w,alpha)=>{
+      const pts=arr.map(proj).filter(Boolean); if(pts.length<2) return;
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+      ctx.closePath();
+      ctx.strokeStyle=color; ctx.lineWidth=w; ctx.globalAlpha=alpha===undefined?1:alpha; ctx.stroke(); ctx.globalAlpha=1;
+    };
+    const quad=(a,b,c2,d,fill,stroke,sw)=>{
+      const q=[proj(a),proj(b),proj(c2),proj(d)];
+      if(q.some(x=>!x)) return;
+      const dep=(q[0].d+q[1].d+q[2].d+q[3].d)/4;
+      push(dep, ()=>{
+        ctx.beginPath(); ctx.moveTo(q[0].x,q[0].y);
+        for(let k=1;k<4;k++) ctx.lineTo(q[k].x,q[k].y);
+        ctx.closePath();
+        if(fill){ ctx.fillStyle=fill; ctx.fill(); }
+        if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=sw||1; ctx.stroke(); }
+      });
+    };
+    // 胎面（近侧 + 远侧），逐片深度排序，形成实体胎
+    for(let i=0;i<N;i++){
+      const j=(i+1)%N;
+      quad(oO[i],oO[j],oI[j],oI[i], 'rgba(74,84,102,0.60)', 'rgba(150,163,186,0.28)', 1);
+    }
+    // 轮辋盘
+    for(let i=0;i<N;i++){
+      const j=(i+1)%N;
+      quad(wc, rO[j], rO[i], wc, 'rgba(178,189,210,0.16)', null);
+      quad(wc, rI[j], rI[i], wc, 'rgba(140,152,175,0.13)', null);
+    }
+    push(1e8, ()=>{ poly(oO,'#9aa6ba',1.8,.9); poly(oI,'#78839a',1.8,.9); });
+    push(1e8, ()=>{ poly(rO,'#c2cce0',1.4,.7); poly(rI,'#98a4ba',1.4,.7); });
+    push(1e9, ()=>{ dot3(proj, geo.cp, 4.5, '#facc15', true); });
+  }
+
+  /* ---- 构件 ---- */
+  const C = GRP_COLOR;
+  const seg = (a,b,col,w)=>push((proj(a)&&proj(b))?((proj(a).d+proj(b).d)/2):1e8, ()=>tube(proj,a,b,col,w));
+  // 上叉臂
+  seg(p.UAF,p.UBJ,C.up,1.5); seg(p.UAR,p.UBJ,C.up,1.5); seg(p.UAF,p.UAR,C.up,1.0);
+  seg(p.UBJ,p.UPR,C.up,1.4);
+  // 下叉臂
+  seg(p.LAF,p.LBJ,C.low,1.7); seg(p.LAR,p.LBJ,C.low,1.7); seg(p.LAF,p.LAR,C.low,1.0);
+  // 立柱
+  seg(p.UBJ,p.LBJ,'#c9d2e6',1.5); seg(p.LBJ,p.TRO,'#c9d2e6',1.2);
+  seg(p.LBJ,p.WC,'#c9d2e6',1.7); seg(p.UBJ,p.WC,'#c9d2e6',1.0);
+  seg(p.TRO,p.WC,'#c9d2e6',1.0);
+  // 推杆
+  seg(p.UPR,p.RPR,C.push,1.5);
+  // 转向拉杆
+  seg(p.TRI,p.TRO,C.tie,1.4);
+  // 减震器
+  seg(p.DCH,p.RDE,C.damp,2.2);
+  // 摇臂三角形
+  push(1e8, ()=>{
+    const a=proj(p.RKP), b=proj(p.RPR), c2=proj(p.RDE);
+    if(a&&b&&c2){
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c2.x,c2.y); ctx.closePath();
+      ctx.fillStyle='rgba(21,160,90,.30)'; ctx.fill();
+      ctx.strokeStyle=C.rock; ctx.lineWidth=2.4; ctx.stroke();
+    }
+  });
+
+  /* ---- 硬点 ---- */
+  HPK.forEach(k=>{
+    const col = C[HPINFO[k].g]||'#fff';
+    if(k==='WC'){ push(1e9,()=>dot3(proj,p[k],5,'#facc15',true)); return; }
+    if(k==='UPR'||k==='RPR') { push(1e9,()=>dot3(proj,p[k],3.4,col,true)); return; }
+    push(1e9, ()=>dot3(proj,p[k],3.2,col,true));
+  });
+
+  /* ---- 力箭头 ---- */
+  if(S.view.arrows && res){
+    const list = [
+      {k:'UAF', F:res.UAF, c:C.up,   n:'UAF'},
+      {k:'UAR', F:res.UAR, c:C.up,   n:'UAR'},
+      {k:'UBJ', F:res.ubjOnUpper, c:C.up, n:'UBJ'},
+      {k:'UPR', F:res.pushrodF_onUpper, c:C.push, n:'UPR'},
+      {k:'LAF', F:res.LAF, c:C.low,  n:'LAF'},
+      {k:'LAR', F:res.LAR, c:C.low,  n:'LAR'},
+      {k:'LBJ', F:res.lbjOnLower, c:C.low, n:'LBJ'},
+      {k:'RKP', F:res.rkPivotF, c:C.rock, n:'摇臂轴'},
+      {k:'RPR', F:res.pushrodF_onRocker, c:C.push, n:'RPR'},
+      {k:'RDE', F:res.damperF_onRocker, c:C.damp, n:'RDE'},
+      {k:'TRO', F:res.tieF_onKnuckle, c:C.tie, n:'TRO'}
+    ];
+    let maxF=1; list.forEach(o=>maxF=Math.max(maxF,V.len(o.F)));
+    const maxLen = 165 * S.view.arrowScale;
+    list.forEach(o=>{
+      const L=V.len(o.F); if(L<1e-6) return;
+      const len = Math.max(12, L/maxF*maxLen);
+      const lbl = (S.view.labels && L/maxF>0.60) ? L.toFixed(0)+'N' : null;
+      push(2e9, ()=>arrow3(proj, p[o.k], o.F, len, o.c, lbl));
+    });
+    // 轮胎力
+    const F=[cse.wf.Fx,cse.wf.Fy,cse.wf.Fz];
+    push(2e9, ()=>arrow3(proj, geo.cp, F, Math.max(20,V.len(F)/maxF*maxLen), '#facc15','轮胎合力'));
+  }
+
+  items.sort((a,b)=>b.d-a.d);
+  items.forEach(it=>{ try{ it.fn(); }catch(e){} });
+
+  /* ---- HUD ---- */
+  document.getElementById('hudCase').innerHTML = '工况：<b>'+cse.cs.name+'</b>';
+  let mf=0;
+  if(res){
+    const vals=[V.len(res.UAF),V.len(res.UAR),V.len(res.ubjOnUpper),
+                V.len(res.pushrodF_onUpper),V.len(res.LAF),V.len(res.LAR),
+                V.len(res.lbjOnLower),V.len(res.rkPivotF),V.len(res.tieF_onKnuckle),
+                V.len(res.damperF_onRocker)];
+    mf=Math.max(...vals);
+  }
+  document.getElementById('hudMax').innerHTML = res? '最大硬点力：<b>'+mf.toFixed(0)+' N</b>' : '—';
+  const warnEl=document.getElementById('hudWarn');
+  if(CALC.alerts && CALC.alerts.some(a=>a.l==='bad')){ warnEl.style.display=''; warnEl.textContent='存在严重告警'; }
+  else if(CALC.alerts && CALC.alerts.some(a=>a.l==='warn')){ warnEl.style.display=''; warnEl.textContent='存在提示项'; }
+  else warnEl.style.display='none';
+}
+
+/* 鼠标交互 */
+let drag=null;
+cv.addEventListener('mousedown', e=>{ drag={x:e.clientX,y:e.clientY,b:e.button}; e.preventDefault(); });
+window.addEventListener('mousemove', e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  drag.x=e.clientX; drag.y=e.clientY;
+  if(drag.b===2){ // 平移
+    const {xA,yA}=camBasis();
+    const k = cam.baseDist/cam.zoom*0.0016;
+    cam.target = V.add(cam.target, V.add(V.mul(xA,-dx*k), V.mul(yA,dy*k)));
+  } else {
+    cam.yaw -= dx*0.0075;
+    cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + dy*0.0065));
+  }
+  render3D();
+});
+window.addEventListener('mouseup', ()=>{ drag=null; });
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+cv.addEventListener('wheel', e=>{
+  e.preventDefault();
+  cam.zoom = Math.max(0.25, Math.min(6, cam.zoom * (e.deltaY>0?0.9:1.11)));
+  render3D();
+},{passive:false});
+// 触屏
+let touch=null;
+cv.addEventListener('touchstart',e=>{ if(e.touches.length===1){touch={x:e.touches[0].clientX,y:e.touches[0].clientY};} },{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(touch&&e.touches.length===1){
+    const dx=e.touches[0].clientX-touch.x, dy=e.touches[0].clientY-touch.y;
+    touch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    cam.yaw-=dx*0.0075; cam.pitch=Math.max(-1.45,Math.min(1.45,cam.pitch+dy*0.0065));
+    render3D(); e.preventDefault();
+  }
+},{passive:false});
+
+/* =====================================================================
+   8. UI 构建
+   ===================================================================== */
+function fieldRow(label, unit, val, key, obj, step){
+  return `<div class="field"><label>${label}${unit?`<span class="unit">${unit}</span>`:''}</label>
+    <input type="number" data-obj="${obj}" data-key="${key}" step="${step||1}" value="${val}"></div>`;
+}
+function buildInputs(){
+  // 硬点表
+  const hpBody = HPK.map(k=>{
+    const h=HPINFO[k];
+    return `<tr><td class="nm"><span class="tag" style="background:${GRP_COLOR[h.g]}"></span>${h.n}</td>`+
+      [0,1,2].map(i=>`<td><input type="number" data-hp="${k}" data-i="${i}" step="0.1" value="${S.hp[k][i]}"></td>`).join('')+
+      `</tr>`;
+  }).join('');
+  document.getElementById('hpTable').innerHTML =
+    `<thead><tr><th>硬点</th><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody>${hpBody}</tbody>`;
+
+  // 整车
+  document.getElementById('vehBox').innerHTML =
+    fieldRow('整车质量（含车手）','kg',S.veh.mass,'mass','veh',1)+
+    fieldRow('轴距','mm',S.veh.wheelbase,'wheelbase','veh',5)+
+    fieldRow('轮距','mm',S.veh.track,'track','veh',5)+
+    fieldRow('重心高度','mm',S.veh.cgHeight,'cgHeight','veh',5)+
+    fieldRow('前轴荷比','—',S.veh.frontWeightFrac,'frontWeightFrac','veh',0.01)+
+    fieldRow('前侧倾刚度分配','—',S.veh.frontRollFrac,'frontRollFrac','veh',0.01)+
+    fieldRow('前制动分配','—',S.veh.brakeBias,'brakeBias','veh',0.01)+
+    fieldRow('前驱动分配（后驱=0）','—',S.veh.frontDriveShare,'frontDriveShare','veh',0.05)+
+    `<div class="hint" style="margin-top:6px">前轴荷比 = 前轴静态垂载 / 总重；由它和"轮心 X 坐标"共同决定重心位置。</div>`;
+
+  // 轮胎
+  document.getElementById('tireBox').innerHTML =
+    fieldRow('轮胎半径','mm',S.tire.radius,'radius','tire',1)+
+    fieldRow('胎宽','mm',S.tire.width,'width','tire',5)+
+    fieldRow('附着系数 μ','—',S.tire.mu,'mu','tire',0.05)+
+    fieldRow('车轮外倾角','°',S.tire.camber,'camber','tire',0.1)+
+    fieldRow('前束角（正=内八）','°',S.tire.toe,'toe','tire',0.1)+
+    fieldRow('轮辋半径（13″）','mm',S.tire.rimRadius,'rimRadius','tire',1)+
+    `<div class="hint" style="margin-top:6px">接地点由轮心、半径、外倾自动算出；13″ 轮辋半径为 165.1 mm。</div>`;
+
+  // 弹簧
+  document.getElementById('sprBox').innerHTML =
+    fieldRow('弹簧刚度','N/mm',S.spr.rate,'rate','spr',1)+
+    fieldRow('预载','N',S.spr.preload,'preload','spr',10)+
+    fieldRow('减震器标称长度','mm',S.spr.nominalLen,'nominalLen','spr',5);
+
+  // 工况
+  const cb = S.cases.map((c,i)=>{
+    return `<tr><td class="nm">${c.name}</td>
+      <td><input type="number" data-case="${i}" data-ck="gx" step="0.1" value="${c.gx}"></td>
+      <td><input type="number" data-case="${i}" data-ck="gy" step="0.1" value="${c.gy}"></td>
+      <td><input type="number" data-case="${i}" data-ck="aero" step="50" value="${c.aero}"></td>
+      <td style="text-align:center"><input type="checkbox" data-case="${i}" data-ck="manual" ${c.manual?'checked':''}></td>
+      <td><input type="number" data-case="${i}" data-ck="mFx" step="10" value="${c.mFx}" ${c.manual?'':'disabled'}></td>
+      <td><input type="number" data-case="${i}" data-ck="mFy" step="10" value="${c.mFy}" ${c.manual?'':'disabled'}></td>
+      <td><input type="number" data-case="${i}" data-ck="mFz" step="10" value="${c.mFz}" ${c.manual?'':'disabled'}></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('caseTable').innerHTML =
+    `<thead><tr><th>工况</th><th>gx</th><th>gy</th><th>下压力<br>N/轮</th><th>手</th><th>Fx</th><th>Fy</th><th>Fz</th></tr></thead><tbody>${cb}</tbody>`;
+
+  // 显示
+  document.getElementById('viewBox').innerHTML =
+    `<div class="field"><label>显示力箭头</label><input type="checkbox" id="ckArrow" ${S.view.arrows?'checked':''} style="justify-self:end"></div>
+     <div class="field"><label>显示轮胎</label><input type="checkbox" id="ckTire" ${S.view.tire?'checked':''} style="justify-self:end"></div>
+     <div class="field"><label>箭头数值标签</label><input type="checkbox" id="ckLabel" ${S.view.labels?'checked':''} style="justify-self:end"></div>
+     <div class="field" style="grid-template-columns:1fr"><label>箭头长度 ×<span id="asVal">${S.view.arrowScale.toFixed(2)}</span></label>
+       <input type="range" id="rgArrow" min="0.2" max="3" step="0.1" value="${S.view.arrowScale}"></div>`;
+
+  // 图例
+  document.getElementById('legend').innerHTML = Object.keys(GRP_NAME).map(g=>
+    `<div><i style="background:${GRP_COLOR[g]}"></i>${GRP_NAME[g]}</div>`).join('');
+}
+
+/* ---------------------------------------------------------------------
+   输出渲染
+   --------------------------------------------------------------------- */
+const fmt=(x,d)=>{
+  if(x===undefined||x===null||!isFinite(x)) return '—';
+  d = (d===undefined)?1:d;
+  let s = Number(x).toFixed(d);
+  if(/^-0(\.0*)?$/.test(s)) s = s.slice(1);   // 避免出现 "-0"
+  return s;
+};
+const fv=(v,d)=> (v?'('+fmt(v[0],d||0)+', '+fmt(v[1],d||0)+', '+fmt(v[2],d||0)+')':'—');
+const fl=v=> fmt(V.len(v),0);
+
+function renderAlerts(){
+  const al = CALC.alerts = buildAlerts();
+  document.getElementById('alerts').innerHTML = al.map(a=>
+    `<div class="alert ${a.l}"><div class="ic">${a.l==='ok'?'✓':(a.l==='warn'?'!':'×')}</div>
+     <div><b>${a.t}</b><br><span>${a.d}</span></div></div>`).join('');
+  const bad = al.filter(a=>a.l==='bad').length, wrn = al.filter(a=>a.l==='warn').length;
+  document.getElementById('marginSummary').innerHTML =
+    bad? `<span style="color:#e0413c;font-weight:600">${bad} 项严重告警</span>${wrn?`，${wrn} 项提示`:''}`
+       : wrn? `<span style="color:#d98900;font-weight:600">${wrn} 项提示</span>`
+       : `<span style="color:#0ea472;font-weight:600">全部通过</span>`;
+}
+
+function metric(k,v,unit,cls){
+  return `<div class="metric ${cls||''}"><div class="k">${k}</div><div class="v">${v}${unit?`<small>${unit}</small>`:''}</div></div>`;
+}
+function renderMetrics(){
+  const g=CALC.geo; if(!g) return;
+  const mg=CALC.margin||{margin:Infinity};
+  const mcls = mg.margin===Infinity?'good':(mg.margin<0.4?'bad':(mg.margin<2?'warn':'good'));
+  const mval = mg.margin===Infinity?'>10':fmt(mg.margin,1);
+  const dl = Math.abs(g.rockerL1-g.rockerL2)/Math.max(g.rockerL1,1e-6)*100;
+  const dcls = (dl<4 && Math.abs(g.rockerAngle-90)<2)?'good':((dl<12&&Math.abs(g.rockerAngle-90)<6)?'warn':'bad');
+  const ccls = g.coplaneMax<0.5?'good':(g.coplaneMax<3?'warn':'bad');
+  let maxUse=0; CALC.cases.forEach(c=>{ if(c.res&&isFinite(c.wf.useM)) maxUse=Math.max(maxUse,c.wf.useM); });
+  const ucls = maxUse>S.tire.mu?'bad':(maxUse>S.tire.mu*0.95?'warn':'good');
+  let maxF=0,maxFn='';
+  CALC.cases.forEach(c=>{ if(!c.res)return;
+    const arr=[['推杆',c.res.pushrod],['转向拉杆',c.res.tierod],['减震器',c.res.damper],
+               ['上球头',V.len(c.res.ubjOnUpper)],['下球头',V.len(c.res.lbjOnLower)],
+               ['上叉臂内点',V.len(c.res.UAF)],['下叉臂内点',V.len(c.res.LAF)],['摇臂轴',V.len(c.res.rkPivotF)]];
+    arr.forEach(([n,v])=>{ if(Math.abs(v)>Math.abs(maxF)){maxF=v;maxFn=n+' · '+c.cs.name;} });
+  });
+  document.getElementById('metrics').innerHTML =
+    metric('数值余量（10% 力变化）', mval, 'mm', mcls)+
+    metric('共面最大偏差', fmt(g.coplaneMax,3),'mm',ccls)+
+    metric('摇臂两臂长', fmt(g.rockerL1,1)+' / '+fmt(g.rockerL2,1),'mm',dcls)+
+    metric('摇臂夹角（转轴处）', fmt(g.rockerAngle,2),'°',dcls)+
+    metric('运动比 MR', isFinite(g.MR)?fmt(Math.abs(g.MR),3):'—','mm/mm', isFinite(g.MR)?'good':'bad')+
+    metric('轮心刚度', isFinite(g.MR)?fmt(S.spr.rate*g.MR*g.MR,1):'—','N/mm','good')+
+    metric('推杆力臂', fmt(g.armPush,1),'mm',g.armPush>25?'good':(g.armPush>12?'warn':'bad'))+
+    metric('减震器力臂', fmt(g.armDam,1),'mm',g.armDam>25?'good':(g.armDam>12?'warn':'bad'))+
+    metric('摇臂比（减/推）', fmt(g.rockerRatio,3),'—','good')+
+    metric('推杆长度', fmt(g.prLen,1),'mm',g.prLen>100?'good':'warn')+
+    metric('转向拉杆长度', fmt(g.tieLen,1),'mm',g.tieLen>100?'good':'warn')+
+    metric('减震器长度', fmt(g.damLen,1),'mm',Math.abs(g.damLen-S.spr.nominalLen)/S.spr.nominalLen<0.15?'good':'warn')+
+    metric('主销内倾 KPI', fmt(g.KPI,2),'°','good')+
+    metric('主销后倾', fmt(g.caster,2),'°','good')+
+    metric('主销偏移距', fmt(g.scrub,1),'mm', g.scrub<100?'good':(g.scrub<140?'warn':'bad'))+
+    metric('上叉臂长度', fmt(g.upArmLen,1),'mm','good')+
+    metric('下叉臂长度', fmt(g.loArmLen,1),'mm','good')+
+    metric('最大摩擦利用率', fmt(maxUse,3),'μ='+S.tire.mu,ucls)+
+    metric('最大内力', fmt(Math.abs(maxF),0),'N','good');
+  document.getElementById('metrics').title = maxFn;
+}
+
+function renderSummary(){
+  const rows = [
+    ['推杆（轴向）',      c=>c.res?c.res.pushrod:null, true],
+    ['转向拉杆（轴向）',  c=>c.res?c.res.tierod:null, true],
+    ['减震器（轴向）',    c=>c.res?c.res.damper:null, true],
+    ['上球头 |F|',        c=>c.res?V.len(c.res.ubjOnUpper):null],
+    ['下球头 |F|',        c=>c.res?V.len(c.res.lbjOnLower):null],
+    ['上叉臂前内点 |F|',  c=>c.res?V.len(c.res.UAF):null],
+    ['上叉臂后内点 |F|',  c=>c.res?V.len(c.res.UAR):null],
+    ['下叉臂前内点 |F|',  c=>c.res?V.len(c.res.LAF):null],
+    ['下叉臂后内点 |F|',  c=>c.res?V.len(c.res.LAR):null],
+    ['摇臂转轴 |F|',      c=>c.res?V.len(c.res.rkPivotF):null],
+    ['摇臂轴弯矩(理想铰=0)', c=>c.res?V.len(c.res.rkPivotM):null],
+    ['上叉臂铰弯矩',      c=>c.res?V.len(c.res.upPivotM_at_arm):null],
+    ['下叉臂铰弯矩',      c=>c.res?V.len(c.res.loPivotM_at_arm):null]
+  ];
+  let all=[];
+  CALC.cases.forEach(c=>rows.forEach(r=>{ const v=r[1](c); if(v!==null&&isFinite(v)) all.push(Math.abs(v)); }));
+  const mx = Math.max(1,...all);
+  let html = '<thead><tr><th class="l">输出量</th>'+CALC.cases.map(c=>`<th>${c.cs.name}</th>`).join('')+'</tr></thead><tbody>';
+  rows.forEach(([name,fn,tag])=>{
+    html += `<tr><td>${name}</td>`;
+    CALC.cases.forEach(c=>{
+      const v = fn(c);
+      if(v===null||!isFinite(v)){ html += '<td>—</td>'; return; }
+      const a=Math.abs(v)/mx;
+      const bg = a>0.75?'rgba(224,65,60,.14)':a>0.45?'rgba(232,134,42,.14)':a>0.2?'rgba(59,110,245,.10)':'transparent';
+      let extra='';
+      if(tag){ const s = v>=0?'<span class="tagx c" style="margin-left:5px">压</span>':'<span class="tagx t" style="margin-left:5px">拉</span>'; extra=s; }
+      html += `<td class="big" style="background:${bg}">${fmt(Math.abs(v),0)}${extra}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('sumTable').innerHTML = html;
+}
+
+function renderTabs(){
+  document.getElementById('caseTabs').innerHTML = S.cases.map((c,i)=>
+    `<div class="tab ${i===S.view.selectCase?'on':''}" data-tab="${i}">${c.name}</div>`).join('');
+}
+
+function renderDetail(){
+  const i = S.view.selectCase, c = CALC.cases[i];
+  const info = document.getElementById('caseInfo');
+  if(!c){ info.textContent=''; return; }
+  const w = c.wf, g = CALC.geo;
+  info.innerHTML = c.err
+    ? `<span style="color:#e0413c">求解失败：${c.err}</span>`
+    : `单轮轮胎力 Fx=<b>${fmt(w.Fx,0)}</b> N, Fy=<b>${fmt(w.Fy,0)}</b> N, Fz=<b>${fmt(w.Fz,0)}</b> N`
+      +`（${w.manual?'手动指定':'整车推导，左轮'}） · 摩擦利用率 <b>${fmt(w.useM,3)}</b> / μ=${S.tire.mu}`
+      +` · 重心位置 x=${fmt(w.xCG,0)} mm · 前轴垂载（含纵向转移）${fmt(w.Wf,0)} N`
+      +` · 右轮 Fz=${fmt(w.FzR,0)} N`;
+  if(!c.res){ document.getElementById('memberTable').innerHTML=''; document.getElementById('hpForceTable').innerHTML=''; return; }
+  const r = c.res;
+
+  // 构件内力
+  const pc = v => v>=0? '<span class="tagx c">受压</span>' : '<span class="tagx t">受拉</span>';
+  document.getElementById('memberTable').innerHTML =
+    `<thead><tr><th class="l">构件</th><th>轴向力 N</th><th>状态</th><th>力臂 mm</th><th class="l">说明</th></tr></thead><tbody>
+     <tr><td><span class="swatch" style="background:${GRP_COLOR.push}"></span>推杆 UPR–RPR</td>
+         <td class="big">${fmt(Math.abs(r.pushrod),0)}</td><td>${pc(r.pushrod)}</td>
+         <td>${fmt(g.armPush,1)}</td><td style="text-align:left;font-family:inherit;color:#8d97ab">对摇臂转轴的力臂</td></tr>
+     <tr><td><span class="swatch" style="background:${GRP_COLOR.tie}"></span>转向拉杆 TRO–TRI</td>
+         <td class="big">${fmt(Math.abs(r.tierod),0)}</td><td>${pc(r.tierod)}</td>
+         <td>—</td><td style="text-align:left;font-family:inherit;color:#8d97ab">齿条固定（无转向输入）</td></tr>
+     <tr><td><span class="swatch" style="background:${GRP_COLOR.damp}"></span>减震器 RDE–DCH</td>
+         <td class="big">${fmt(Math.abs(r.damper),0)}</td><td>${pc(r.damper)}</td>
+         <td>${fmt(g.armDam,1)}</td><td style="text-align:left;font-family:inherit;color:#8d97ab">对摇臂转轴的力臂</td></tr>
+     <tr><td><span class="swatch" style="background:${GRP_COLOR.damp}"></span>弹簧压缩量（相对静态）</td>
+         <td class="big">${fmt((r.damper - (CALC.cases[0].res?CALC.cases[0].res.damper:r.damper))/S.spr.rate,1)}</td>
+         <td><span class="tagx n">mm</span></td><td>${fmt(S.spr.rate,0)}</td>
+         <td style="text-align:left;font-family:inherit;color:#8d97ab">N/mm 弹簧刚度下的等效行程</td></tr>
+     </tbody>`;
+
+  // 硬点受力
+  const rows = [
+    ['UAF','上叉臂·前内点','up',r.UAF,'作用于上叉臂（车架反力）'],
+    ['UAR','上叉臂·后内点','up',r.UAR,'作用于上叉臂（车架反力）'],
+    ['UBJ','上球头','up',r.ubjOnUpper,'作用于上叉臂（来自立柱）'],
+    ['UPR','上叉臂·推杆座','push',r.pushrodF_onUpper,'作用于上叉臂（来自推杆）'],
+    ['LAF','下叉臂·前内点','low',r.LAF,'作用于下叉臂（车架反力）'],
+    ['LAR','下叉臂·后内点','low',r.LAR,'作用于下叉臂（车架反力）'],
+    ['LBJ','下球头','low',r.lbjOnLower,'作用于下叉臂（来自立柱）'],
+    ['RKP','摇臂·转轴','rock',r.rkPivotF,'作用于摇臂（来自车架）'],
+    ['RPR','摇臂·推杆点','push',r.pushrodF_onRocker,'作用于摇臂（来自推杆）'],
+    ['RDE','摇臂·减震器点','damp',r.damperF_onRocker,'作用于摇臂（来自减震器）'],
+    ['DCH','减震器·车架点','damp',r.damperF_onFrame,'作用于车架（来自减震器）'],
+    ['TRI','转向拉杆·齿条点','tie',r.tieF_onRack,'作用于齿条（来自拉杆）'],
+    ['TRO','转向拉杆·转向节点','tie',r.tieF_onKnuckle,'作用于立柱（来自拉杆）'],
+  ];
+  let mx=1; rows.forEach(x=>mx=Math.max(mx,V.len(x[3])));
+  let html = '<thead><tr><th class="l">硬点</th><th>Fx N</th><th>Fy N</th><th>Fz N</th><th>|F| N</th><th class="l">方向说明</th></tr></thead><tbody>';
+  rows.forEach(([k,n,g_,F,note])=>{
+    const L=V.len(F), a=L/mx;
+    const bg = a>0.75?'rgba(224,65,60,.10)':a>0.45?'rgba(232,134,42,.10)':a>0.2?'rgba(59,110,245,.07)':'transparent';
+    html += `<tr><td><span class="swatch" style="background:${GRP_COLOR[g_]}"></span>${n}</td>
+      <td>${fmt(F[0],0)}</td><td>${fmt(F[1],0)}</td><td>${fmt(F[2],0)}</td>
+      <td class="big" style="background:${bg}">${fmt(L,0)}</td>
+      <td style="text-align:left;font-family:inherit;color:#8d97ab;font-size:11px">${note}</td></tr>`;
+  });
+  html += `<tr><td><span class="swatch" style="background:${GRP_COLOR.wheel}"></span>接地点（轮胎力）</td>
+    <td>${fmt(w.Fx,0)}</td><td>${fmt(w.Fy,0)}</td><td>${fmt(w.Fz,0)}</td>
+    <td class="big">${fmt(Math.hypot(w.Fx,w.Fy,w.Fz),0)}</td>
+    <td style="text-align:left;font-family:inherit;color:#8d97ab;font-size:11px">作用于立柱（来自地面）</td></tr>`;
+  html += '</tbody>';
+  document.getElementById('hpForceTable').innerHTML = html;
+}
+
+/* =====================================================================
+   9. 主流程
+   ===================================================================== */
+let pending=false;
+function update(full){
+  computeAll();
+  if(full!==false){ renderAlerts(); }
+  renderMetrics(); renderSummary(); renderTabs(); renderDetail(); render3D();
+}
+/* 用 setTimeout 而非 requestAnimationFrame 做合并：
+   rAF 在后台标签页/无合成帧时会被挂起，会让"改动立即重算"失效 */
+function schedule(){
+  if(pending) return; pending=true;
+  setTimeout(()=>{ pending=false; update(true); }, 25);
+}
+
+/* 事件：数字输入 */
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if(t.dataset.hp!==undefined){
+    const v=parseFloat(t.value); S.hp[t.dataset.hp][+t.dataset.i] = isFinite(v)?v:0; schedule();
+  } else if(t.dataset.obj){
+    const v=parseFloat(t.value); if(isFinite(v)) S[t.dataset.obj][t.dataset.key]=v;
+    else S[t.dataset.obj][t.dataset.key]=0;
+    schedule();
+  } else if(t.dataset.case!==undefined){
+    const i=+t.dataset.case, k=t.dataset.ck;
+    if(k==='manual'){ S.cases[i].manual=t.checked; buildInputs(); }
+    else { const v=parseFloat(t.value); S.cases[i][k]=isFinite(v)?v:0; }
+    schedule();
+  }
+});
+document.addEventListener('change', e=>{
+  const t=e.target;
+  if(t.id==='ckArrow'){ S.view.arrows=t.checked; render3D(); }
+  if(t.id==='ckTire'){ S.view.tire=t.checked; render3D(); }
+  if(t.id==='ckLabel'){ S.view.labels=t.checked; render3D(); }
+});
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if(t.id==='rgArrow'){ S.view.arrowScale=parseFloat(t.value); document.getElementById('asVal').textContent=S.view.arrowScale.toFixed(2); render3D(); }
+});
+document.getElementById('caseTabs').addEventListener('click', e=>{
+  const t=e.target.closest('[data-tab]'); if(!t) return;
+  S.view.selectCase=+t.dataset.tab; renderTabs(); renderDetail(); render3D();
+});
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  initState(); buildInputs(); update(true);
+  cam.yaw=-0.95; cam.pitch=0.38; fitView(); render3D();
+});
+document.getElementById('btnFit').addEventListener('click', ()=>{
+  cam.yaw=-0.95; cam.pitch=0.38; fitView(); render3D();
+});
+/* 几何校正：
+   1) 推杆座 UPR 投到上叉臂三角形平面（结构约束）
+   2) 以「过 RKP 与 UPR、法向尽量接近原法向」定义新摇臂平面
+   3) 在新平面内把摇臂重建为等腰直角三角形（臂长取原两臂均值，方位尽量保持）
+   4) 减震器车架点沿法向投到新平面（改动最小）
+   5) 若校正后减震器在受载时变成受拉，把减震器臂镜像到另一侧
+*/
+document.getElementById('btnSnap').addEventListener('click', ()=>{
+  let g0; try{ g0 = buildGeo(S.hp); }catch(e){ return; }
+  const nOld = V.norm(g0.rockerAxisRaw);
+  if(!V.len(nOld)) return;
+  const A = S.hp.RKP.slice();
+
+  // 1) UPR → 上叉臂平面
+  {
+    const P0=S.hp.UAR, v1=V.sub(S.hp.UAF,P0), v2=V.sub(S.hp.UBJ,P0);
+    const nu=V.norm(V.cross(v1,v2));
+    if(V.len(nu)>0)
+      S.hp.UPR = V.sub(S.hp.UPR, V.mul(nu, V.dot(V.sub(S.hp.UPR,P0), nu))).map(x=>+x.toFixed(4));
+  }
+  // 2) 新摇臂平面
+  let u = V.sub(S.hp.UPR, A);
+  if(V.len(u) < 1e-6) return;
+  u = V.norm(u);
+  let n = V.sub(nOld, V.mul(u, V.dot(nOld,u)));
+  n = V.len(n) < 1e-6 ? V.perp(u) : V.norm(n);
+  // 3) 重建摇臂
+  const L = (g0.rockerL1 + g0.rockerL2)/2;
+  let d1 = V.sub(S.hp.RPR, A);
+  d1 = V.sub(d1, V.mul(n, V.dot(d1,n)));
+  d1 = V.len(d1) < 1e-6 ? V.perp(n) : V.norm(d1);
+  const c1 = V.add(A, V.mul(V.cross(n,d1), L));
+  const c2 = V.add(A, V.mul(V.cross(d1,n), L));
+  const keep = V.dist(c1, S.hp.RDE) <= V.dist(c2, S.hp.RDE) ? c1 : c2;
+  S.hp.RPR = V.add(A, V.mul(d1, L)).map(x=>+x.toFixed(4));
+  S.hp.RDE = keep.map(x=>+x.toFixed(4));
+  // 4) DCH → 新平面
+  S.hp.DCH = V.sub(S.hp.DCH, V.mul(n, V.dot(V.sub(S.hp.DCH,A), n))).map(x=>+x.toFixed(4));
+  // 5) 保证轮跳向上时减震器受压
+  try{
+    const r1 = solveCase(buildGeo(S.hp), [0,0,1]);
+    if(r1 && r1.damper < 0){
+      S.hp.RDE = V.sub(V.mul(A,2), S.hp.RDE).map(x=>+x.toFixed(4));
+      S.hp.DCH = V.sub(V.mul(A,2), S.hp.DCH).map(x=>+x.toFixed(4));
+    }
+  }catch(e){}
+  buildInputs(); update(true);
+});
+
+/* 启动 */
+buildInputs();
+update(true);
+fitView();
+window.addEventListener('resize', ()=>{ resizeCanvas(); render3D(); });
+resizeCanvas();
+render3D();
+
+/* 供离线校验使用 */
+if(typeof module!=='undefined' && module.exports){
+  module.exports = {buildGeo, solveCase, wheelForces, computeAll, marginAnalysis,
+                    get S(){return S;}, setState:(o)=>{Object.assign(S,o);}};
+}
+</script>
+</body>
+</html>
